@@ -17,5 +17,9 @@
         "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS"
       }
     }
-  ]
+  ],
+  "env": {
+    "MONGODB_URI": "@mongodb_uri",
+    "JWT_SECRET": "@jwt_secret"
+  }
 }
