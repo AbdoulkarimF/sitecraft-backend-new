@@ -11,16 +11,28 @@ const authRoutes = require('./routes/auth');
 
 const app = express();
 
-// Middleware
-app.use(cors());
+// CORS configuration
+const corsOptions = {
+  origin: ['http://localhost:3000', 'https://sitecraft.vercel.app'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  credentials: true
+};
+
+// Apply CORS middleware
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
+// Parse JSON bodies
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('Connected to MongoDB'))
   .catch(err => console.error('MongoDB connection error:', err));
 
-// Routes
+// Health check route
 app.get('/', (req, res) => {
   res.json({ 
     message: 'Welcome to SiteCraft API',
@@ -40,7 +52,12 @@ app.get('/', (req, res) => {
 app.get('/test', (req, res) => {
   res.json({ 
     message: 'Test route working!',
-    mongodb: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'
+    mongodb: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
+    env: {
+      nodeEnv: process.env.NODE_ENV,
+      mongoDbUri: process.env.MONGODB_URI ? 'Set' : 'Not set',
+      jwtSecret: process.env.JWT_SECRET ? 'Set' : 'Not set'
+    }
   });
 });
 
@@ -49,10 +66,19 @@ app.use('/api/auth', authRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ 
+  console.error('Error:', err.stack);
+  res.status(err.status || 500).json({ 
     error: true,
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+    message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  });
+});
+
+// Handle 404
+app.use((req, res) => {
+  res.status(404).json({
+    error: true,
+    message: 'Route not found'
   });
 });
 
