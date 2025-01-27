@@ -11,5 +11,10 @@
       "src": "/(.*)",
       "dest": "/server.js"
     }
-  ]
+  ],
+  "buildCommand": "npm install",
+  "outputDirectory": ".",
+  "env": {
+    "NODE_ENV": "production"
+  }
 }
