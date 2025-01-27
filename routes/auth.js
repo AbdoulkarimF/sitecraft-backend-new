@@ -6,23 +6,37 @@ const router = express.Router();
 
 // Register new user
 router.post('/register', async (req, res) => {
+  console.log('Register route hit');
+  console.log('Request body:', req.body);
+  
   try {
     const { email, password, name } = req.body;
 
+    // Validation
+    if (!email || !password || !name) {
+      console.log('Missing required fields');
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+
     // Check if user already exists
+    console.log('Checking for existing user');
     const existingUser = await User.findOne({ email });
     if (existingUser) {
+      console.log('User already exists');
       return res.status(400).json({ message: 'User already exists' });
     }
 
     // Create new user
+    console.log('Creating new user');
     const user = new User({
       email,
       password,
       name
     });
 
+    console.log('Saving user to database');
     await user.save();
+    console.log('User saved successfully');
 
     // Generate JWT
     const token = jwt.sign(
@@ -31,6 +45,7 @@ router.post('/register', async (req, res) => {
       { expiresIn: '7d' }
     );
 
+    console.log('Sending success response');
     res.status(201).json({
       message: 'User created successfully',
       token,
@@ -41,8 +56,8 @@ router.post('/register', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Register error:', error);
-    res.status(500).json({ message: 'Error creating user' });
+    console.error('Registration error:', error);
+    res.status(500).json({ message: 'Error creating user', error: error.message });
   }
 });
 

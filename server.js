@@ -11,9 +11,16 @@ const authRoutes = require('./routes/auth');
 
 const app = express();
 
+// Logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  console.log('Headers:', req.headers);
+  next();
+});
+
 // CORS configuration
 const corsOptions = {
-  origin: ['http://localhost:3000', 'https://sitecraft.vercel.app'],
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
   credentials: true
@@ -27,17 +34,25 @@ app.options('*', cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// MongoDB connection options
+const mongooseOptions = {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
+};
+
 // Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI)
+console.log('Attempting to connect to MongoDB...');
+console.log('MongoDB URI:', process.env.MONGODB_URI ? 'Set (length: ' + process.env.MONGODB_URI.length + ')' : 'Not set');
+console.log('Environment:', process.env.NODE_ENV);
+
+mongoose.connect(process.env.MONGODB_URI, mongooseOptions)
   .then(() => {
-    console.log('Connected to MongoDB');
-    console.log('MongoDB URI:', process.env.MONGODB_URI ? 'Set (length: ' + process.env.MONGODB_URI.length + ')' : 'Not set');
-    console.log('Environment:', process.env.NODE_ENV);
+    console.log('Successfully connected to MongoDB');
   })
   .catch(err => {
     console.error('MongoDB connection error:', err);
-    console.error('MongoDB URI:', process.env.MONGODB_URI ? 'Set (length: ' + process.env.MONGODB_URI.length + ')' : 'Not set');
-    console.error('Environment:', process.env.NODE_ENV);
   });
 
 // Health check route
@@ -46,6 +61,7 @@ app.get('/', (req, res) => {
     message: 'Welcome to SiteCraft API',
     version: '1.0.0',
     status: 'online',
+    mongodb: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
     endpoints: {
       auth: [
         { path: '/api/auth/register', method: 'POST', description: 'Register a new user' },
@@ -74,7 +90,7 @@ app.use('/api/auth', authRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Error:', err.stack);
+  console.error('Error:', err);
   res.status(err.status || 500).json({ 
     error: true,
     message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error',
