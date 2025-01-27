@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
+const path = require('path');
 
 // Load environment variables
 dotenv.config();
@@ -14,25 +15,22 @@ const app = express();
 // Logging middleware
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
-  console.log('Headers:', req.headers);
+  console.log('Headers:', JSON.stringify(req.headers, null, 2));
+  if (req.body) {
+    console.log('Body:', JSON.stringify(req.body, null, 2));
+  }
   next();
 });
 
 // CORS configuration
-const corsOptions = {
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-  credentials: true
-};
+app.use(cors());
 
-// Apply CORS middleware
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
-
-// Parse JSON bodies
+// Body parsing middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve static files from the React app
+app.use(express.static(path.join(__dirname, 'client/build')));
 
 // MongoDB connection options
 const mongooseOptions = {
@@ -55,25 +53,22 @@ mongoose.connect(process.env.MONGODB_URI, mongooseOptions)
     console.error('MongoDB connection error:', err);
   });
 
+// API routes
+app.use('/api/auth', authRoutes);
+
 // Health check route
-app.get('/', (req, res) => {
+app.get('/api/health', (req, res) => {
   res.json({ 
-    message: 'Welcome to SiteCraft API',
+    message: 'API is healthy',
     version: '1.0.0',
     status: 'online',
     mongodb: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
-    endpoints: {
-      auth: [
-        { path: '/api/auth/register', method: 'POST', description: 'Register a new user' },
-        { path: '/api/auth/login', method: 'POST', description: 'Login user' },
-        { path: '/api/auth/me', method: 'GET', description: 'Get current user info' }
-      ]
-    }
+    env: process.env.NODE_ENV
   });
 });
 
 // Test route
-app.get('/test', (req, res) => {
+app.get('/api/test', (req, res) => {
   res.json({ 
     message: 'Test route working!',
     mongodb: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
@@ -85,13 +80,34 @@ app.get('/test', (req, res) => {
   });
 });
 
-// API routes
-app.use('/api/auth', authRoutes);
+// Handle React routing, return all requests to React app
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'client/build', 'index.html'));
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err);
-  res.status(err.status || 500).json({ 
+  
+  // Handle specific types of errors
+  if (err.name === 'ValidationError') {
+    return res.status(400).json({
+      error: true,
+      message: 'Validation error',
+      details: err.message
+    });
+  }
+  
+  if (err.name === 'MongoError' && err.code === 11000) {
+    return res.status(400).json({
+      error: true,
+      message: 'Duplicate key error',
+      details: 'A record with this information already exists'
+    });
+  }
+  
+  // Default error response
+  res.status(err.status || 500).json({
     error: true,
     message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error',
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
@@ -102,7 +118,7 @@ app.use((err, req, res, next) => {
 app.use((req, res) => {
   res.status(404).json({
     error: true,
-    message: 'Route not found'
+    message: `Route ${req.originalUrl} not found`
   });
 });
 
