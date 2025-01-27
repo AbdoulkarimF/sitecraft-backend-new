@@ -41,16 +41,23 @@ app.use(express.urlencoded({ extended: true }));
 
 // MongoDB connection
 console.log('Attempting to connect to MongoDB...');
-console.log('MongoDB URI:', process.env.MONGODB_URI ? 'Set (length: ' + process.env.MONGODB_URI.length + ')' : 'Not set');
-console.log('Environment:', process.env.NODE_ENV);
+const mongoUri = process.env.MONGODB_URI;
+console.log('MongoDB URI structure check:', {
+  hasProtocol: mongoUri?.startsWith('mongodb+srv://'),
+  includesUsername: mongoUri?.includes('abdoulkarimfall'),
+  includesHost: mongoUri?.includes('cluster0.av9oi.mongodb.net'),
+  includesDatabase: mongoUri?.includes('sitecraft'),
+  includesOptions: mongoUri?.includes('retryWrites=true')
+});
 
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
-  serverSelectionTimeoutMS: 30000, // Increased timeout
+  serverSelectionTimeoutMS: 60000, // Increased timeout to 1 minute
   socketTimeoutMS: 45000,
   ssl: true,
-  sslValidate: true,
+  tls: true,
+  tlsAllowInvalidCertificates: false,
   retryWrites: true,
   w: 'majority'
 })
@@ -68,9 +75,20 @@ mongoose.connect(process.env.MONGODB_URI, {
     name: err.name,
     message: err.message,
     code: err.code,
-    codeName: err.codeName,
-    stack: err.stack
+    codeName: err.codeName
   });
+  
+  if (err.name === 'MongoServerSelectionError') {
+    console.log('DNS lookup test...');
+    const dns = require('dns');
+    dns.lookup('cluster0.av9oi.mongodb.net', (err, address, family) => {
+      if (err) {
+        console.error('DNS lookup failed:', err);
+      } else {
+        console.log('DNS lookup successful:', { address, family });
+      }
+    });
+  }
 });
 
 // Monitor MongoDB connection
