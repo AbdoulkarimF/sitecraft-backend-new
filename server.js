@@ -47,8 +47,12 @@ console.log('Environment:', process.env.NODE_ENV);
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
-  serverSelectionTimeoutMS: 5000,
+  serverSelectionTimeoutMS: 30000, // Increased timeout
   socketTimeoutMS: 45000,
+  ssl: true,
+  sslValidate: true,
+  retryWrites: true,
+  w: 'majority'
 })
 .then(() => {
   console.log('Successfully connected to MongoDB');
