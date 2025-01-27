@@ -52,9 +52,40 @@ mongoose.connect(process.env.MONGODB_URI, {
 })
 .then(() => {
   console.log('Successfully connected to MongoDB');
+  console.log('Connection details:', {
+    host: mongoose.connection.host,
+    port: mongoose.connection.port,
+    name: mongoose.connection.name,
+    readyState: mongoose.connection.readyState
+  });
 })
 .catch(err => {
+  console.error('MongoDB connection error details:', {
+    name: err.name,
+    message: err.message,
+    code: err.code,
+    codeName: err.codeName,
+    stack: err.stack
+  });
+});
+
+// Monitor MongoDB connection
+mongoose.connection.on('connected', () => {
+  console.log('MongoDB connection established');
+});
+
+mongoose.connection.on('error', err => {
   console.error('MongoDB connection error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.log('MongoDB connection disconnected');
+});
+
+process.on('SIGINT', async () => {
+  await mongoose.connection.close();
+  console.log('MongoDB connection closed through app termination');
+  process.exit(0);
 });
 
 // Test route
