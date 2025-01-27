@@ -29,8 +29,16 @@ app.use(express.urlencoded({ extended: true }));
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.error('MongoDB connection error:', err));
+  .then(() => {
+    console.log('Connected to MongoDB');
+    console.log('MongoDB URI:', process.env.MONGODB_URI ? 'Set (length: ' + process.env.MONGODB_URI.length + ')' : 'Not set');
+    console.log('Environment:', process.env.NODE_ENV);
+  })
+  .catch(err => {
+    console.error('MongoDB connection error:', err);
+    console.error('MongoDB URI:', process.env.MONGODB_URI ? 'Set (length: ' + process.env.MONGODB_URI.length + ')' : 'Not set');
+    console.error('Environment:', process.env.NODE_ENV);
+  });
 
 // Health check route
 app.get('/', (req, res) => {
