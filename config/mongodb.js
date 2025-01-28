@@ -2,20 +2,22 @@ const mongoose = require('mongoose');
 
 const connectDB = async () => {
   try {
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI is not defined in environment variables');
+    }
+
     console.log('MongoDB connection attempt started');
     console.log('Environment check:', {
       NODE_ENV: process.env.NODE_ENV,
-      hasMongoURI: !!process.env.MONGODB_URI,
-      mongoURILength: process.env.MONGODB_URI?.length
+      hasMongoURI: true,
+      mongoURILength: process.env.MONGODB_URI.length
     });
 
     const options = {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 60000,
+      serverSelectionTimeoutMS: 30000,
       socketTimeoutMS: 45000,
-      ssl: true,
-      tls: true,
       retryWrites: true,
       w: 'majority'
     };
@@ -24,25 +26,8 @@ const connectDB = async () => {
     
     console.log('MongoDB Connected:', {
       host: conn.connection.host,
-      port: conn.connection.port,
       name: conn.connection.name,
       readyState: conn.connection.readyState
-    });
-
-    mongoose.connection.on('connected', () => {
-      console.log('MongoDB event: Connected');
-    });
-
-    mongoose.connection.on('error', (err) => {
-      console.error('MongoDB event: Error', {
-        name: err.name,
-        message: err.message,
-        code: err.code
-      });
-    });
-
-    mongoose.connection.on('disconnected', () => {
-      console.log('MongoDB event: Disconnected');
     });
 
     return conn;
@@ -51,9 +36,11 @@ const connectDB = async () => {
       name: error.name,
       message: error.message,
       code: error.code,
-      stack: error.stack
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
-    process.exit(1);
+    
+    // Don't exit the process, just return null to indicate failure
+    return null;
   }
 };
 

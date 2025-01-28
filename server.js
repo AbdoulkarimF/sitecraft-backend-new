@@ -16,46 +16,47 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Debug middleware - log all requests
+// Debug middleware
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-  console.log('Headers:', JSON.stringify(req.headers, null, 2));
-  console.log('Body:', req.body);
-  
-  // Capture the original send
-  const originalSend = res.send;
-  res.send = function(data) {
-    console.log('Response:', data);
-    return originalSend.apply(res, arguments);
-  };
-  
+  console.log(`${req.method} ${req.path}`);
   next();
 });
 
-// Connect to MongoDB
-console.log('Initializing server...');
-connectDB();
-
 // Test route
 app.get('/api/test', async (req, res) => {
-  console.log('Test route accessed');
-  const mongoStatus = {
-    isConnected: mongoose.connection.readyState === 1,
-    readyState: mongoose.connection.readyState,
-    host: mongoose.connection.host,
-    name: mongoose.connection.name
-  };
-  
-  console.log('MongoDB status:', mongoStatus);
-  
-  res.json({
-    message: 'Test route working!',
-    timestamp: new Date().toISOString(),
-    headers: req.headers,
-    mongodb: mongoStatus.isConnected ? 'Connected' : 'Disconnected',
-    env: process.env.NODE_ENV || 'development',
-    mongodbDetails: mongoStatus
-  });
+  try {
+    console.log('Test route accessed');
+    
+    // Check MongoDB connection
+    if (!mongoose.connection || mongoose.connection.readyState !== 1) {
+      console.log('MongoDB not connected, attempting to connect...');
+      await connectDB();
+    }
+    
+    const mongoStatus = {
+      isConnected: mongoose.connection.readyState === 1,
+      readyState: mongoose.connection.readyState,
+      host: mongoose.connection.host,
+      name: mongoose.connection.name
+    };
+    
+    console.log('MongoDB status:', mongoStatus);
+    
+    res.json({
+      message: 'Test route working!',
+      timestamp: new Date().toISOString(),
+      mongodb: mongoStatus.isConnected ? 'Connected' : 'Disconnected',
+      env: process.env.NODE_ENV || 'development',
+      mongodbDetails: mongoStatus
+    });
+  } catch (error) {
+    console.error('Error in test route:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // API routes
@@ -67,7 +68,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({
     error: 'Internal Server Error',
     message: err.message,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -80,10 +81,18 @@ app.use((req, res) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log('Environment:', process.env.NODE_ENV);
+// Initialize MongoDB connection
+console.log('Initializing server...');
+connectDB().then(connection => {
+  if (!connection) {
+    console.warn('Initial MongoDB connection failed, will retry on requests');
+  }
+  
+  // Start server
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log('Environment:', process.env.NODE_ENV);
+  });
 });
 
 // Export for Vercel
