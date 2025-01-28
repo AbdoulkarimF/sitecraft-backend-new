@@ -1,16 +1,20 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
-const dotenv = require('dotenv');
+const connectDB = require('./config/mongodb');
 const path = require('path');
-
-// Load environment variables
-dotenv.config();
 
 // Import routes
 const authRoutes = require('./routes/auth');
 
 const app = express();
+const PORT = process.env.PORT || 3001;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Debug middleware - log all requests
 app.use((req, res, next) => {
@@ -28,104 +32,29 @@ app.use((req, res, next) => {
   next();
 });
 
-// CORS configuration
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
-// Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// MongoDB connection
-console.log('Starting MongoDB connection attempt...');
-console.log('Environment:', {
-  NODE_ENV: process.env.NODE_ENV,
-  hasMongoURI: !!process.env.MONGODB_URI,
-  hasJWTSecret: !!process.env.JWT_SECRET
-});
-
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  serverSelectionTimeoutMS: 60000, // Increased timeout to 1 minute
-  socketTimeoutMS: 45000,
-  ssl: true,
-  tls: true,
-  tlsAllowInvalidCertificates: false,
-  retryWrites: true,
-  w: 'majority'
-})
-.then(() => {
-  console.log('MongoDB connection successful!');
-  console.log('Connection details:', {
-    host: mongoose.connection.host,
-    port: mongoose.connection.port,
-    name: mongoose.connection.name,
-    readyState: mongoose.connection.readyState
-  });
-})
-.catch(err => {
-  console.error('MongoDB connection error:', {
-    name: err.name,
-    message: err.message,
-    code: err.code,
-    codeName: err.codeName,
-    stack: err.stack
-  });
-  
-  if (err.name === 'MongoServerSelectionError') {
-    console.log('DNS lookup test...');
-    const dns = require('dns');
-    dns.lookup('cluster0.av9oi.mongodb.net', (err, address, family) => {
-      if (err) {
-        console.error('DNS lookup failed:', err);
-      } else {
-        console.log('DNS lookup successful:', { address, family });
-      }
-    });
-  }
-});
-
-// Monitor MongoDB connection
-mongoose.connection.on('connected', () => {
-  console.log('MongoDB connection event: connected');
-});
-
-mongoose.connection.on('error', err => {
-  console.error('MongoDB connection event: error', err);
-});
-
-mongoose.connection.on('disconnected', () => {
-  console.log('MongoDB connection event: disconnected');
-});
-
-mongoose.connection.on('reconnected', () => {
-  console.log('MongoDB connection event: reconnected');
-});
-
-process.on('SIGINT', async () => {
-  await mongoose.connection.close();
-  console.log('MongoDB connection closed through app termination');
-  process.exit(0);
-});
+// Connect to MongoDB
+console.log('Initializing server...');
+connectDB();
 
 // Test route
-app.get('/api/test', (req, res) => {
+app.get('/api/test', async (req, res) => {
   console.log('Test route accessed');
+  const mongoStatus = {
+    isConnected: mongoose.connection.readyState === 1,
+    readyState: mongoose.connection.readyState,
+    host: mongoose.connection.host,
+    name: mongoose.connection.name
+  };
+  
+  console.log('MongoDB status:', mongoStatus);
+  
   res.json({
     message: 'Test route working!',
     timestamp: new Date().toISOString(),
     headers: req.headers,
-    mongodb: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
+    mongodb: mongoStatus.isConnected ? 'Connected' : 'Disconnected',
     env: process.env.NODE_ENV || 'development',
-    mongodbDetails: {
-      readyState: mongoose.connection.readyState,
-      host: mongoose.connection.host,
-      name: mongoose.connection.name
-    }
+    mongodbDetails: mongoStatus
   });
 });
 
@@ -134,10 +63,10 @@ app.use('/api/auth', authRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(err.status || 500).json({
-    error: true,
-    message: err.message || 'Internal server error',
+  console.error('Global error handler:', err);
+  res.status(500).json({
+    error: 'Internal Server Error',
+    message: err.message,
     stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });
 });
@@ -151,14 +80,11 @@ app.use((req, res) => {
   });
 });
 
-// Start server if not in Vercel
-if (process.env.NODE_ENV !== 'production') {
-  const port = process.env.PORT || 5000;
-  app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-    console.log(`Environment: ${process.env.NODE_ENV}`);
-  });
-}
+// Start server
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log('Environment:', process.env.NODE_ENV);
+});
 
 // Export for Vercel
 module.exports = app;
