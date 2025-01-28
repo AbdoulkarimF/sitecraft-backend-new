@@ -40,14 +40,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // MongoDB connection
-console.log('Attempting to connect to MongoDB...');
-const mongoUri = process.env.MONGODB_URI;
-console.log('MongoDB URI structure check:', {
-  hasProtocol: mongoUri?.startsWith('mongodb+srv://'),
-  includesUsername: mongoUri?.includes('abdoulkarimfall'),
-  includesHost: mongoUri?.includes('cluster0.av9oi.mongodb.net'),
-  includesDatabase: mongoUri?.includes('sitecraft'),
-  includesOptions: mongoUri?.includes('retryWrites=true')
+console.log('Starting MongoDB connection attempt...');
+console.log('Environment:', {
+  NODE_ENV: process.env.NODE_ENV,
+  hasMongoURI: !!process.env.MONGODB_URI,
+  hasJWTSecret: !!process.env.JWT_SECRET
 });
 
 mongoose.connect(process.env.MONGODB_URI, {
@@ -62,7 +59,7 @@ mongoose.connect(process.env.MONGODB_URI, {
   w: 'majority'
 })
 .then(() => {
-  console.log('Successfully connected to MongoDB');
+  console.log('MongoDB connection successful!');
   console.log('Connection details:', {
     host: mongoose.connection.host,
     port: mongoose.connection.port,
@@ -71,11 +68,12 @@ mongoose.connect(process.env.MONGODB_URI, {
   });
 })
 .catch(err => {
-  console.error('MongoDB connection error details:', {
+  console.error('MongoDB connection error:', {
     name: err.name,
     message: err.message,
     code: err.code,
-    codeName: err.codeName
+    codeName: err.codeName,
+    stack: err.stack
   });
   
   if (err.name === 'MongoServerSelectionError') {
@@ -93,15 +91,19 @@ mongoose.connect(process.env.MONGODB_URI, {
 
 // Monitor MongoDB connection
 mongoose.connection.on('connected', () => {
-  console.log('MongoDB connection established');
+  console.log('MongoDB connection event: connected');
 });
 
 mongoose.connection.on('error', err => {
-  console.error('MongoDB connection error:', err);
+  console.error('MongoDB connection event: error', err);
 });
 
 mongoose.connection.on('disconnected', () => {
-  console.log('MongoDB connection disconnected');
+  console.log('MongoDB connection event: disconnected');
+});
+
+mongoose.connection.on('reconnected', () => {
+  console.log('MongoDB connection event: reconnected');
 });
 
 process.on('SIGINT', async () => {
@@ -112,12 +114,18 @@ process.on('SIGINT', async () => {
 
 // Test route
 app.get('/api/test', (req, res) => {
-  res.json({ 
+  console.log('Test route accessed');
+  res.json({
     message: 'Test route working!',
     timestamp: new Date().toISOString(),
     headers: req.headers,
     mongodb: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
-    env: process.env.NODE_ENV
+    env: process.env.NODE_ENV || 'development',
+    mongodbDetails: {
+      readyState: mongoose.connection.readyState,
+      host: mongoose.connection.host,
+      name: mongoose.connection.name
+    }
   });
 });
 
