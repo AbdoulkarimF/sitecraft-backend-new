@@ -15,6 +15,8 @@
   "buildCommand": "npm install",
   "outputDirectory": ".",
   "env": {
+    "MONGODB_URI": "mongodb+srv://abdoulkarimfall:Temposse78%2E@cluster0.av9oi.mongodb.net/sitecraft?retryWrites=true&w=majority",
+    "JWT_SECRET": "your_jwt_secret_key",
     "NODE_ENV": "production"
   }
 }
